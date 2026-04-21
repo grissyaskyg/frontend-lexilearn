@@ -1,0 +1,338 @@
+import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
+import { Search, MessageSquare, User, Calendar, X, Eye, ChevronRight, Mic, Download, FileText } from 'lucide-react';
+import dayjs from 'dayjs';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+
+const AIConversationsLog = () => {
+    const [conversations, setConversations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedConversation, setSelectedConversation] = useState(null);
+
+    useEffect(() => {
+        fetchConversations();
+    }, []);
+
+    const fetchConversations = async () => {
+        try {
+            const res = await api.get('/ai-chat/all-conversations');
+            if (res.data.success) {
+                setConversations(res.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch conversations:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const exportLogsToPDF = () => {
+        if (!filteredConversations || filteredConversations.length === 0) {
+            alert("No interaction logs available to export.");
+            return;
+        }
+
+        try {
+            const doc = new jsPDF();
+            const timestamp = dayjs().format('YYYY-MM-DD_HHmm');
+
+            // Header
+            doc.setFontSize(22);
+            doc.setTextColor(63, 81, 181); // Indigo
+            doc.text('LexiLearn: AI Interaction Summary Report', 14, 22);
+
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Report Generated: ${new Date().toLocaleString()}`, 14, 30);
+            doc.text(`Total Sessions: ${filteredConversations.length}`, 14, 35);
+
+            // Table
+            const tableColumn = ["Student ID", "Student Name", "Topic", "Type", "Messages", "Last Active"];
+            const tableRows = filteredConversations.map(conv => [
+                conv.student?._id?.substring(0, 8) || 'N/A',
+                conv.student?.userId?.fullName || conv.student?.userId?.name || 'Unknown',
+                conv.title || 'Untitled',
+                conv.type === 'voice' ? 'Voice' : 'Chat',
+                conv.messageCount || 0,
+                dayjs(conv.date).format('MMM D, HH:mm')
+            ]);
+
+            autoTable(doc, {
+                startY: 45,
+                head: [tableColumn],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: [63, 81, 181] },
+                styles: { fontSize: 8 }
+            });
+
+            doc.save(`AI_Interactions_Report_${timestamp}.pdf`);
+        } catch (error) {
+            console.error("PDF Export Error:", error);
+            alert("Failed to generate PDF. Please try again or check console for details.");
+        }
+    };
+
+    const filteredConversations = conversations.filter(conv =>
+        conv.student?.userId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        conv.student?.userId?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        conv.title?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const openModal = (conv) => setSelectedConversation(conv);
+    const closeModal = () => setSelectedConversation(null);
+
+    if (loading) return (
+        <div className="flex justify-center items-center h-64 text-center flex-col animate-pulse">
+            <MessageSquare size={48} className="text-indigo-500 mb-4" />
+            <div className="text-sm font-black uppercase tracking-widest text-gray-500">Loading AI Logs...</div>
+        </div>
+    );
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-700">
+            <div className="flex justify-between items-end">
+                <div>
+                    <h1 className="text-4xl font-black tracking-tight uppercase">AI Interaction Logs</h1>
+                    <p className="text-gray-400 font-medium">Review student discussions with the AI Tutor.</p>
+                </div>
+                <button
+                    onClick={exportLogsToPDF}
+                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                >
+                    <Download size={16} />
+                    Download Report (PDF)
+                </button>
+            </div>
+
+            {/* Search */}
+            <div className="glass-card p-4 rounded-2xl border border-white/5 bg-white/5 flex items-center gap-4">
+                <Search size={20} className="text-gray-400" />
+                <input
+                    type="text"
+                    placeholder="Search by student name or topic..."
+                    className="bg-transparent border-none outline-none text-white w-full placeholder-gray-500"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            {/* Table */}
+            <div className="glass-card rounded-[2rem] border border-white/5 overflow-hidden bg-black/20">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-white/5 border-b border-white/5">
+                            <tr>
+                                <th className="p-6 text-[10px] uppercase tracking-widest text-gray-400 font-black">Student</th>
+                                <th className="p-6 text-[10px] uppercase tracking-widest text-gray-400 font-black">Topic</th>
+                                <th className="p-6 text-[10px] uppercase tracking-widest text-gray-400 font-black">Messages</th>
+                                <th className="p-6 text-[10px] uppercase tracking-widest text-gray-400 font-black">Last Active</th>
+                                <th className="p-6 text-[10px] uppercase tracking-widest text-gray-400 font-black">AI Feedback</th>
+                                <th className="p-6 text-[10px] uppercase tracking-widest text-gray-400 font-black text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {filteredConversations.length > 0 ? (
+                                filteredConversations.map((conv) => (
+                                    <tr key={conv._id} className="hover:bg-white/5 transition-colors group">
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                    <User size={14} />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-sm text-gray-200">{conv.student?.userId?.name || conv.student?.userId?.fullName || 'Unknown Student'}</div>
+                                                    <div className="text-xs text-gray-500">{conv.student?.userId?.email}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-2">
+                                                {conv.type === 'voice' ? <Mic size={14} className="text-emerald-500" /> : <MessageSquare size={14} className="text-indigo-500" />}
+                                                <span className="font-medium text-gray-300">{conv.title || 'Untitled Session'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-2 text-gray-400">
+                                                <MessageSquare size={14} />
+                                                <span className="font-bold text-sm">{conv.messageCount || 0}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-sm text-gray-400 font-mono">
+                                            {dayjs(conv.date).format('MMM D, HH:mm')}
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="max-w-xs">
+                                                {conv.ai_feedback && conv.ai_feedback.length > 60 ? (
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <span className="text-xs text-gray-400 line-clamp-2">{conv.ai_feedback}</span>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); openModal(conv); }}
+                                                            className="text-[10px] uppercase tracking-wider font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                        >
+                                                            View Full Report
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-gray-300">{conv.ai_feedback || 'No Feedback'}</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-right">
+                                            <button
+                                                onClick={() => openModal(conv)}
+                                                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-indigo-500/20 text-gray-400 hover:text-indigo-400 transition-all border border-white/5 hover:border-indigo-500/20"
+                                            >
+                                                <Eye size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="5" className="p-12 text-center text-gray-500 font-medium">
+                                        No conversations found matching your search.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Modal */}
+            {selectedConversation && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#111] w-full max-w-3xl rounded-[2rem] border border-white/10 shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5 rounded-t-[2rem]">
+                            <div>
+                                <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                                    {selectedConversation.type === 'voice' ? <Mic size={20} className="text-emerald-400" /> : <MessageSquare size={20} className="text-indigo-400" />}
+                                    {selectedConversation.title}
+                                </h3>
+                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                    <User size={14} />
+                                    <span>{selectedConversation.student?.userId?.name || selectedConversation.student?.userId?.fullName}</span>
+                                    <span className="w-1 h-1 bg-gray-600 rounded-full"></span>
+                                    <Calendar size={14} />
+                                    <span>{dayjs(selectedConversation.date).format('MMMM D, YYYY')}</span>
+                                </div>
+                            </div>
+                            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Content Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {selectedConversation.type === 'chat' ? (
+                                selectedConversation.details.messages.map((msg, idx) => (
+                                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div
+                                            className={`
+                                                max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed
+                                                ${msg.role === 'user'
+                                                    ? 'bg-indigo-600 text-white rounded-br-none'
+                                                    : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'
+                                                }
+                                            `}
+                                        >
+                                            <div className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-2">
+                                                {msg.role === 'user' ? 'Student' : 'AI Tutor'}
+                                            </div>
+                                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div></div>
+                            )}
+
+                            {/* Show Final Report for Chat sessions */}
+                            {selectedConversation.type === 'chat' && selectedConversation.details.finalReport && (
+                                <div className="p-6 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 mt-4">
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-4">AI Final Evaluation</h4>
+                                    <div className="text-gray-200 leading-relaxed text-sm whitespace-pre-wrap">
+                                        {selectedConversation.details.finalReport}
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedConversation.type === 'voice' && (
+                                <div className="space-y-6">
+                                    {/* Phase 1: Scaffolding Chat if available */}
+                                    {selectedConversation.details.conversationId?.messages && selectedConversation.details.conversationId.messages.length > 0 && (
+                                        <div className="p-6 bg-indigo-500/5 rounded-2xl border border-indigo-500/10">
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-4 flex items-center gap-2">
+                                                <MessageSquare size={14} /> Phase 1: Interactive Scaffolding
+                                            </h4>
+                                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                                                {selectedConversation.details.conversationId.messages.map((msg, idx) => (
+                                                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                        <div className={`max-w-[85%] p-3 rounded-xl text-xs ${msg.role === 'user' ? 'bg-indigo-600/20 text-indigo-100 border border-indigo-500/20' : 'bg-white/5 text-gray-300 border border-white/5'}`}>
+                                                            <div className="text-[8px] uppercase font-black mb-1 opacity-40">{msg.role === 'user' ? 'Student' : 'AI Tutor'}</div>
+                                                            <div>{msg.content}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {selectedConversation.details.conversationId.finalReport && (
+                                                <div className="mt-4 pt-4 border-t border-indigo-500/10">
+                                                    <div className="text-[9px] font-black uppercase text-indigo-400/60 mb-2 tracking-widest">Chat Final Report</div>
+                                                    <div className="text-xs text-indigo-200/70 whitespace-pre-wrap italic">
+                                                        {selectedConversation.details.conversationId.finalReport}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4 flex items-center gap-2">
+                                            <Mic size={14} /> Phase 2: Independent Voice Recording
+                                        </h4>
+                                        {selectedConversation.details.audioUrl ? (
+                                            <audio controls crossOrigin="anonymous" className="w-full h-12 custom-audio rounded-xl">
+                                                <source
+                                                    src={selectedConversation.details.audioUrl.startsWith('http')
+                                                        ? selectedConversation.details.audioUrl
+                                                        : `${api.defaults.baseURL.replace('/api', '')}${selectedConversation.details.audioUrl}`}
+                                                    type="audio/webm"
+                                                />
+                                                Your browser does not support audio playback.
+                                            </audio>
+                                        ) : (
+                                            <div className="text-center text-gray-500 text-sm py-4">No audio file available</div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">Transcription</h4>
+                                        <div className="text-gray-300 leading-relaxed font-serif text-lg">
+                                            "{selectedConversation.details.transcription}"
+                                        </div>
+                                    </div>
+
+                                    {selectedConversation.details.advice && (
+                                        <div className="p-6 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-4">AI Final Feedback</h4>
+                                            <div className="text-gray-300 leading-relaxed text-sm whitespace-pre-wrap">
+                                                {selectedConversation.details.advice}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default AIConversationsLog;
