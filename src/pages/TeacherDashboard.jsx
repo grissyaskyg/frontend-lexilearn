@@ -40,7 +40,7 @@ const TeacherDashboardHome = ({ stats }) => {
                 </div>
                 <div className="bg-indigo-600/20 text-indigo-400 px-4 py-2 rounded-xl border border-indigo-500/20 flex items-center gap-2">
                     <Sparkles size={18} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Academic Year 2024</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">Academic Year 2026</span>
                 </div>
             </div>
 
