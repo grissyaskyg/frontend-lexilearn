@@ -18,4 +18,15 @@ export default defineConfig({
       },
     },
   },
+  // Preview configuration used by `vite preview` in production-like environments
+  preview: {
+    host: '0.0.0.0',
+    port: 8080,
+    // allow the DigitalOcean app hostnames (add any other hosts you use)
+    allowedHosts: [
+      'goldfish-app-r2dpu.ondigitalocean.app',
+      'orca-app-pfvzr.ondigitalocean.app',
+      '*.ondigitalocean.app'
+    ]
+  }
 })
